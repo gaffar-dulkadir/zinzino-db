@@ -1,0 +1,580 @@
+{
+	"info": {
+		"name": "Zinzino IoT API",
+		"description": "Complete API collection for Zinzino IoT Backend service",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"version": "1.0.0"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "device_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "notification_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('access_token', jsonData.access_token);",
+									"    pm.environment.set('refresh_token', jsonData.refresh_token);",
+									"    pm.environment.set('user_id', jsonData.user.user_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"Test1234!\",\n  \"full_name\": \"Test User\",\n  \"phone\": \"+905551234567\",\n  \"language\": \"en\",\n  \"timezone\": \"Europe/Istanbul\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('access_token', jsonData.access_token);",
+									"    pm.environment.set('refresh_token', jsonData.refresh_token);",
+									"    pm.environment.set('user_id', jsonData.user.user_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"Test1234!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('access_token', jsonData.access_token);",
+									"    pm.environment.set('refresh_token', jsonData.refresh_token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "refresh"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/logout",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "logout"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test@example.com\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/forgot-password",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "forgot-password"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Devices",
+			"item": [
+				{
+					"name": "List Devices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/devices?include_inactive=false&sort=name&order=asc",
+							"host": ["{{base_url}}"],
+							"path": ["devices"],
+							"query": [
+								{
+									"key": "include_inactive",
+									"value": "false"
+								},
+								{
+									"key": "sort",
+									"value": "name"
+								},
+								{
+									"key": "order",
+									"value": "asc"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Device",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('device_id', jsonData.device_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"device_name\": \"My Fish Oil Dispenser\",\n  \"device_type\": \"fish_oil\",\n  \"mac_address\": \"AA:BB:CC:DD:EE:FF\",\n  \"serial_number\": \"ZNZ-2024-0001\",\n  \"location\": \"Kitchen\",\n  \"firmware_version\": \"1.0.0\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/devices",
+							"host": ["{{base_url}}"],
+							"path": ["devices"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Device",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/devices/{{device_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["devices", "{{device_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Device",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"device_name\": \"Updated Device Name\",\n  \"location\": \"Living Room\",\n  \"battery_level\": 85,\n  \"supplement_level\": 70\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/devices/{{device_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["devices", "{{device_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Device",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/devices/{{device_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["devices", "{{device_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Device History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/devices/{{device_id}}/history?limit=50&offset=0",
+							"host": ["{{base_url}}"],
+							"path": ["devices", "{{device_id}}", "history"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Notifications",
+			"item": [
+				{
+					"name": "List Notifications",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications?is_read=false&limit=50&offset=0",
+							"host": ["{{base_url}}"],
+							"path": ["notifications"],
+							"query": [
+								{
+									"key": "is_read",
+									"value": "false"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Notification",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('notification_id', jsonData.notification_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"reminder\",\n  \"title\": \"Time to take your supplement!\",\n  \"message\": \"Don't forget your daily fish oil dose\",\n  \"metadata\": {\n    \"scheduled_time\": \"09:00\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/notifications",
+							"host": ["{{base_url}}"],
+							"path": ["notifications"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Notification",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/{{notification_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "{{notification_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark as Read",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/{{notification_id}}/read",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "{{notification_id}}", "read"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark All as Read",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/mark-all-read",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "mark-all-read"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Unread Count",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/unread-count",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "unread-count"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/stats",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "stats"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Notification",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/notifications/{{notification_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["notifications", "{{notification_id}}"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Synchronization",
+			"item": [
+				{
+					"name": "Full Sync",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"device_info\": {\n    \"platform\": \"ios\",\n    \"app_version\": \"1.0.0\",\n    \"os_version\": \"17.0\",\n    \"device_model\": \"iPhone 15\"\n  },\n  \"include_deleted\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/sync/full",
+							"host": ["{{base_url}}"],
+							"path": ["sync", "full"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delta Sync",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"device_info\": {\n    \"platform\": \"ios\",\n    \"app_version\": \"1.0.0\",\n    \"os_version\": \"17.0\",\n    \"device_model\": \"iPhone 15\"\n  },\n  \"last_sync_timestamp\": \"2024-12-16T18:00:00Z\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/sync/delta",
+							"host": ["{{base_url}}"],
+							"path": ["sync", "delta"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Sync Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/sync/status",
+							"host": ["{{base_url}}"],
+							"path": ["sync", "status"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Health Check",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/../health",
+					"host": ["{{base_url}}"],
+					"path": ["..", "health"]
+				}
+			},
+			"response": []
+		}
+	]
+}
