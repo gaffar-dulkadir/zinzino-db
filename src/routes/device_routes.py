@@ -23,6 +23,115 @@ router = APIRouter(prefix="/devices", tags=["Devices"])
 
 
 @router.get(
+    "/scan-wifi",
+    summary="Scan Wi-Fi networks",
+    description="Scan for available Wi-Fi networks (IoT/Gateway only)"
+)
+async def scan_wifi(
+    session: AsyncSession = Depends(get_postgres_session)
+):
+    """
+    Scan for available Wi-Fi networks.
+    
+    Returns list of networks with SSID, signal level and capabilities.
+    """
+    try:
+        device_service = DeviceService(session)
+        return await device_service.scan_wifi()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Wi-Fi scan failed: {str(e)}"
+        )
+
+
+@router.post(
+    "/connect",
+    summary="Connect device to WiFi",
+    description="Send WiFi credentials to Zinzino device (Direct connection to device AP)"
+)
+async def connect_device(
+    ssid: str = Query(..., description="WiFi SSID to connect"),
+    password: str = Query(..., description="WiFi password"),
+    device_ip: str = Query(default="192.168.4.1", description="Device IP address"),
+    broker: str = Query(default="", description="MQTT broker address"),
+    port: int = Query(default=1883, description="MQTT port"),
+    mqtt_user: str = Query(default="", description="MQTT username"),
+    mqtt_pass: str = Query(default="", description="MQTT password")
+):
+    """
+    Send WiFi configuration to Zinzino device.
+    
+    This endpoint is used when the mobile app is connected to the device's AP (Zinzino_XXXXXXXX).
+    It forwards the WiFi credentials to the device at http://192.168.4.1/config
+    
+    - **ssid**: WiFi network name
+    - **password**: WiFi password
+    - **device_ip**: Device IP (default: 192.168.4.1)
+    - **broker**: MQTT broker address
+    - **port**: MQTT port
+    - **mqtt_user**: MQTT username (optional)
+    - **mqtt_pass**: MQTT password (optional)
+    
+    Returns success status.
+    """
+    try:
+        import aiohttp
+        import asyncio
+        
+        # Prepare configuration data
+        config_data = {
+            "ssid": ssid,
+            "password": password,
+            "broker": broker,
+            "port": port,
+            "mqttUser": mqtt_user,
+            "mqttPass": mqtt_pass
+        }
+        
+        # Send configuration to device
+        device_url = f"http://{device_ip}/config"
+        
+        async with aiohttp.ClientSession() as client_session:
+            try:
+                async with client_session.post(
+                    device_url,
+                    json=config_data,
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return {
+                            "success": True,
+                            "message": "Configuration sent to device successfully",
+                            "device_response": result
+                        }
+                    else:
+                        error_text = await response.text()
+                        raise HTTPException(
+                            status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail=f"Device returned error: {error_text}"
+                        )
+            except asyncio.TimeoutError:
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail="Device connection timeout. Make sure you're connected to the device's WiFi AP."
+                )
+            except aiohttp.ClientError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Cannot connect to device: {str(e)}"
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to connect device: {str(e)}"
+        )
+
+
+@router.get(
     "",
     response_model=List[DeviceResponseDTO],
     summary="List user devices",

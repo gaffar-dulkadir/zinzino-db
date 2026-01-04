@@ -5,6 +5,7 @@ This module provides business logic for user authentication, registration,
 and token management.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,23 +50,37 @@ class AuthService:
         Raises:
             EmailAlreadyExistsError: If email is already registered
         """
+        logger = logging.getLogger(__name__)
+        logger.info(f"Starting registration for email: {user_data.email}")
+        
         # Check if email already exists
         existing_user = await self.user_repo.get_by_email(user_data.email)
         if existing_user:
+            logger.warning(f"Registration failed: Email {user_data.email} already exists")
             raise EmailAlreadyExistsError(user_data.email)
         
         # Create user
-        user = User(
-            email=user_data.email,
-            password_hash=hash_password(user_data.password),
-            full_name=user_data.full_name,
-            phone=user_data.phone,
-            oauth_provider="email",
-            is_verified=False,
-            is_active=True
-        )
-        
-        user = await self.user_repo.create_user(user)
+        try:
+            logger.info("Hashing password...")
+            pwd_hash = hash_password(user_data.password)
+            logger.info(f"Password hashed. Hash length: {len(pwd_hash)}")
+            
+            user = User(
+                email=user_data.email,
+                password_hash=pwd_hash,
+                full_name=user_data.full_name,
+                phone=user_data.phone,
+                oauth_provider="email",
+                is_verified=False,
+                is_active=True
+            )
+            
+            logger.info("Saving user to database...")
+            user = await self.user_repo.create_user(user)
+            logger.info(f"User created with ID: {user.user_id}")
+        except Exception as e:
+            logger.error(f"Error during user creation: {str(e)}")
+            raise
         
         # Create user profile
         profile = UserProfile(
@@ -96,26 +111,56 @@ class AuthService:
             InvalidCredentialsError: If credentials are invalid
             AccountInactiveError: If account is inactive
         """
-        # Get user by email
-        user = await self.user_repo.get_by_email(credentials.email)
+        logger = logging.getLogger(__name__)
+        logger.info(f"Login process started for email: {credentials.email}")
         
-        # Verify user exists and password is correct
-        if not user or not user.password_hash:
-            raise InvalidCredentialsError()
-        
-        if not verify_password(credentials.password, user.password_hash):
-            raise InvalidCredentialsError()
-        
-        # Check if account is active
-        if not user.is_active:
-            raise AccountInactiveError()
-        
-        # Update last login
-        await self.user_repo.update_last_login(user.user_id)
-        await self.session.commit()
-        
-        # Generate tokens
-        return await self._generate_token_response(user.user_id)
+        try:
+            # Get user by email
+            logger.debug(f"Fetching user from database for email: {credentials.email}")
+            user = await self.user_repo.get_by_email(credentials.email)
+            
+            # Verify user exists and password is correct
+            if not user:
+                logger.warning(f"Login failed: User not found for email {credentials.email}")
+                raise InvalidCredentialsError()
+            
+            logger.debug(f"User found with ID: {user.user_id}, OAuth provider: {user.oauth_provider}")
+            
+            if not user.password_hash:
+                logger.warning(f"Login failed: No password hash for user {credentials.email} (OAuth provider: {user.oauth_provider})")
+                raise InvalidCredentialsError()
+            
+            logger.debug(f"Verifying password for user {credentials.email}")
+            if not verify_password(credentials.password, user.password_hash):
+                logger.warning(f"Login failed: Invalid password for email {credentials.email}")
+                raise InvalidCredentialsError()
+            
+            logger.debug(f"Password verified successfully for user {credentials.email}")
+            
+            # Check if account is active
+            if not user.is_active:
+                logger.warning(f"Login failed: Account inactive for email {credentials.email}")
+                raise AccountInactiveError()
+            
+            logger.debug(f"Account is active. Updating last login for user {user.user_id}")
+            
+            # Update last login
+            await self.user_repo.update_last_login(user.user_id)
+            await self.session.commit()
+            
+            logger.info(f"Last login updated. Generating tokens for user {user.user_id}")
+            
+            # Generate tokens
+            token_response = await self._generate_token_response(user.user_id)
+            logger.info(f"Login completed successfully for email: {credentials.email}")
+            return token_response
+            
+        except (InvalidCredentialsError, AccountInactiveError) as e:
+            logger.error(f"Authentication error for {credentials.email}: {type(e).__name__}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during login for {credentials.email}: {str(e)}", exc_info=True)
+            raise
     
     async def google_auth(self, google_data: GoogleAuthDTO) -> TokenResponseDTO:
         """

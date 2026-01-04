@@ -15,7 +15,7 @@ from services.notification_settings_service import NotificationSettingsService
 from utils.dependencies import get_current_user
 
 
-router = APIRouter(prefix="/notifications/settings", tags=["Notification Settings"])
+router = APIRouter(prefix="/notification-settings", tags=["Notification Settings"])
 
 
 @router.get(

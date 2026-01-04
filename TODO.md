@@ -1,0 +1,10 @@
+- Gümrük çin bağlantısı tekrar toplantı alınacak fiyatlar için ve vergiler için
+- Şuanki ürün ve parçaların maliyeti
+    - Pcb ücret ön hesaplama
+- Fotoğraf çekim validasyon
+- Leader board eklenilmesi
+- oyunlaştırmadan kısaca eklenecek bir şey varsa not alınacak
+- Mobil app + Backend servislerin birleştirilmesi
+- Aziz'e iletilmiş olan server ın fiyatının incelenmesi ve ayağa kaldırılması
+- Cumartesileri toplantı alınacak
+- Todo yol haritası çıkarılacak cumartesi raporlanacak.

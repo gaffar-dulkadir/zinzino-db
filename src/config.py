@@ -61,13 +61,23 @@ class Config:
         env_path = os.getenv("ENV_PATH")
         if env_path:
             load_dotenv(env_path)
-        elif os.path.exists(".env.example"):
-            load_dotenv(".env.example")
-        elif os.path.exists(".env"):
-            load_dotenv(".env")
         else:
-            # Don't raise an error, use defaults instead
-            pass
+            # Try to find .env in current directory or parent directory
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            parent_dir = os.path.dirname(current_dir)
+            
+            # Check current directory first
+            if os.path.exists(os.path.join(current_dir, ".env")):
+                load_dotenv(os.path.join(current_dir, ".env"))
+            # Check parent directory
+            elif os.path.exists(os.path.join(parent_dir, ".env")):
+                load_dotenv(os.path.join(parent_dir, ".env"))
+            # Check .env.example in parent directory
+            elif os.path.exists(os.path.join(parent_dir, ".env.example")):
+                load_dotenv(os.path.join(parent_dir, ".env.example"))
+            else:
+                # Don't raise an error, use defaults instead
+                pass
     def _get_admin_api_key(self) -> str:
         """Get admin API key from environment variable"""
         return os.getenv("ADMIN_API_KEY", "")

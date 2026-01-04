@@ -4,7 +4,10 @@ Device service for Zinzino IoT application.
 This module provides business logic for device management operations.
 """
 
-from typing import List, Optional
+import os
+import subprocess
+import asyncio
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
@@ -33,6 +36,209 @@ class DeviceService:
         self.device_repo = DeviceRepository(session)
         self.activity_repo = ActivityLogRepository(session)
         self.mapper = DeviceMapper()
+    
+    async def scan_wifi(self) -> Dict[str, Any]:
+        """
+        Scan for Wi-Fi networks using multiple Linux tools.
+        Tries nmcli, iw, and iwlist in order for real WiFi scanning.
+        
+        Returns:
+            Dictionary with list of networks and scan metadata
+            
+        Raises:
+            Exception: If no WiFi scanning method works
+        """
+        networks = []
+        platform = os.name # 'posix' for linux/mac, 'nt' for windows
+        scan_method = None
+        error_messages = []
+        
+        if platform != 'posix':
+            raise Exception("WiFi scanning is only supported on Linux/Unix systems")
+        
+        # Method 1: Try nmcli (NetworkManager - most reliable)
+        try:
+            process = await asyncio.create_subprocess_shell(
+                'nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list 2>&1',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if stdout and process.returncode == 0:
+                lines = stdout.decode().strip().split('\n')
+                for line in lines:
+                    if line and line.strip() and not line.startswith('Error'):
+                        parts = line.split(':')
+                        if len(parts) >= 2:
+                            ssid = parts[0].strip()
+                            signal_str = parts[1].strip()
+                            security = parts[2].strip() if len(parts) > 2 else ''
+                            
+                            # Parse signal - convert to dBm if percentage
+                            try:
+                                signal = int(signal_str)
+                                # If signal is 0-100, convert to dBm (-100 to -30)
+                                if 0 <= signal <= 100:
+                                    signal = -100 + (signal * 70 // 100)
+                            except:
+                                signal = -70
+                            
+                            if ssid and ssid != '--' and ssid != '\\x00':
+                                networks.append({
+                                    "ssid": ssid,
+                                    "level": signal,
+                                    "capabilities": security
+                                })
+                if networks:
+                    scan_method = "nmcli"
+                    print(f"✅ WiFi scan successful via nmcli: {len(networks)} networks")
+            else:
+                error_msg = stderr.decode() if stderr else "nmcli command failed"
+                error_messages.append(f"nmcli: {error_msg}")
+        except Exception as e:
+            error_messages.append(f"nmcli: {str(e)}")
+        
+        # Method 2: Try iw (modern Linux WiFi tool)
+        if not networks:
+            try:
+                # Get wireless interface
+                iface_process = await asyncio.create_subprocess_shell(
+                    'iw dev 2>/dev/null | grep Interface | head -n1 | awk \'{print $2}\'',
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                iface_out, _ = await iface_process.communicate()
+                interface = iface_out.decode().strip()
+                
+                if interface:
+                    # Trigger scan and get results
+                    process = await asyncio.create_subprocess_shell(
+                        f'sudo -n iw dev {interface} scan 2>&1',
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, _ = await process.communicate()
+                    
+                    if stdout and process.returncode == 0:
+                        current_ssid = ""
+                        current_signal = -70
+                        
+                        for line in stdout.decode().split('\n'):
+                            line = line.strip()
+                            if line.startswith('SSID:'):
+                                current_ssid = line.split('SSID:')[1].strip()
+                            elif 'signal:' in line:
+                                try:
+                                    signal_str = line.split('signal:')[1].strip()
+                                    current_signal = int(float(signal_str.split()[0]))
+                                except:
+                                    pass
+                                
+                                # Add network when we have both SSID and signal
+                                if current_ssid:
+                                    networks.append({
+                                        "ssid": current_ssid,
+                                        "level": current_signal,
+                                        "capabilities": "Unknown"
+                                    })
+                                    current_ssid = ""
+                                    current_signal = -70
+                        
+                        if networks:
+                            scan_method = "iw"
+                            print(f"✅ WiFi scan successful via iw: {len(networks)} networks")
+                    else:
+                        error_messages.append("iw: scan failed or requires sudo")
+                else:
+                    error_messages.append("iw: no wireless interface found")
+            except Exception as e:
+                error_messages.append(f"iw: {str(e)}")
+        
+        # Method 3: Try iwlist (legacy but widely available)
+        if not networks:
+            try:
+                # Get wireless interface
+                iface_process = await asyncio.create_subprocess_shell(
+                    'iwconfig 2>/dev/null | grep -o "^[a-z0-9]*" | head -n1',
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                iface_out, _ = await iface_process.communicate()
+                interface = iface_out.decode().strip()
+                
+                if interface:
+                    process = await asyncio.create_subprocess_shell(
+                        f'sudo -n iwlist {interface} scan 2>&1',
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, _ = await process.communicate()
+                    
+                    if stdout and 'Cell ' in stdout.decode():
+                        cells = stdout.decode().split('Cell ')
+                        for cell in cells[1:]:
+                            ssid = ""
+                            signal = -70
+                            
+                            for line in cell.split('\n'):
+                                if 'ESSID:' in line:
+                                    ssid = line.split('ESSID:')[1].strip().strip('"')
+                                elif 'Signal level=' in line:
+                                    try:
+                                        if 'dBm' in line:
+                                            signal_str = line.split('Signal level=')[1].split('dBm')[0].strip()
+                                            signal = int(float(signal_str))
+                                        else:
+                                            # Handle percentage format
+                                            signal_str = line.split('Signal level=')[1].split('/')[0].strip()
+                                            signal_pct = int(signal_str)
+                                            signal = -100 + (signal_pct * 70 // 100)
+                                    except:
+                                        pass
+                            
+                            if ssid:
+                                networks.append({
+                                    "ssid": ssid,
+                                    "level": signal,
+                                    "capabilities": "Unknown"
+                                })
+                        
+                        if networks:
+                            scan_method = "iwlist"
+                            print(f"✅ WiFi scan successful via iwlist: {len(networks)} networks")
+                    else:
+                        error_messages.append("iwlist: scan failed or requires sudo")
+                else:
+                    error_messages.append("iwlist: no wireless interface found")
+            except Exception as e:
+                error_messages.append(f"iwlist: {str(e)}")
+        
+        # If still no networks, raise error with details
+        if not networks:
+            error_detail = " | ".join(error_messages) if error_messages else "Unknown error"
+            raise Exception(
+                f"WiFi scanning failed. Tried nmcli, iw, and iwlist. "
+                f"Install NetworkManager (nmcli) or ensure wireless-tools are installed. "
+                f"Errors: {error_detail}"
+            )
+        
+        # Remove duplicates and sort by signal strength
+        unique_networks = []
+        seen_ssids = set()
+        for network in networks:
+            if network["ssid"] not in seen_ssids:
+                seen_ssids.add(network["ssid"])
+                unique_networks.append(network)
+        
+        unique_networks.sort(key=lambda x: x["level"], reverse=True)
+        
+        return {
+            "networks": unique_networks,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "scan_method": scan_method,
+            "total": len(unique_networks)
+        }
     
     async def list_devices(
         self,

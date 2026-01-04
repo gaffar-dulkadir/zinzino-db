@@ -4,6 +4,7 @@ Authentication routes for Zinzino IoT application.
 This module provides FastAPI routes for user authentication operations.
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +21,7 @@ from utils.exceptions import ZinzinoException
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -76,11 +78,16 @@ async def login(
     Returns access and refresh tokens.
     """
     try:
+        logger.info(f"Login attempt for email: {credentials.email}")
         auth_service = AuthService(session)
-        return await auth_service.login(credentials)
+        result = await auth_service.login(credentials)
+        logger.info(f"Login successful for email: {credentials.email}")
+        return result
     except ZinzinoException as e:
+        logger.warning(f"Login failed for {credentials.email}: {e.message} (code: {e.code})")
         raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
+        logger.error(f"Unexpected error during login for {credentials.email}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Login failed: {str(e)}"

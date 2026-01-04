@@ -6,6 +6,8 @@ This module provides password hashing and JWT token management.
 
 import hashlib
 import secrets
+import logging
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
@@ -15,7 +17,7 @@ from jose import JWTError, jwt
 from config import Config
 
 
-# Password hashing context
+# Password hashing context (maintained for backward compatibility)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -26,7 +28,10 @@ def get_password_hash_context() -> CryptContext:
 
 def hash_password(password: str) -> str:
     """
-    Hash a password using bcrypt.
+    Hash a password using bcrypt with SHA-256 pre-hashing.
+    
+    This approach bypasses bcrypt's 72-byte limit by first hashing the
+    password with SHA-256, which always produces a 32-byte output.
     
     Args:
         password: Plain text password
@@ -34,12 +39,27 @@ def hash_password(password: str) -> str:
     Returns:
         Hashed password string
     """
-    return pwd_context.hash(password)
+    logger = logging.getLogger(__name__)
+    logger.info(f"Hashing password. Original length: {len(password)}")
+    
+    # Pre-hash with SHA-256 to handle any length and bypass bcrypt's 72-byte limit
+    pre_hashed = hashlib.sha256(password.encode('utf-8')).hexdigest().encode('utf-8')
+    logger.info(f"Pre-hashed password (SHA-256) length: {len(pre_hashed)}")
+    
+    try:
+        # Generate salt and hash the pre-hashed password
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(pre_hashed, salt)
+        logger.info("Bcrypt hashing successful")
+        return hashed.decode('utf-8')
+    except Exception as e:
+        logger.error(f"Bcrypt hashing failed: {str(e)}")
+        raise
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    Verify a password against a hash.
+    Verify a password against a hash using SHA-256 pre-hashing.
     
     Args:
         plain_password: Plain text password to verify
@@ -48,7 +68,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    logger = logging.getLogger(__name__)
+    try:
+        # Pre-hash with SHA-256 to match the hashing process
+        pre_hashed = hashlib.sha256(plain_password.encode('utf-8')).hexdigest().encode('utf-8')
+        # Verify using bcrypt library directly
+        return bcrypt.checkpw(pre_hashed, hashed_password.encode('utf-8'))
+    except Exception as e:
+        logger.error(f"Password verification failed: {str(e)}")
+        return False
 
 
 def create_access_token(
